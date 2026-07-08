@@ -1,0 +1,91 @@
+# ========================
+# Compiled class files
+# ========================
+*.class
+
+# ========================
+# Log files
+# ========================
+*.log
+
+# ========================
+# BlueJ files
+# ========================
+*.ctxt
+
+# ========================
+# Mobile Tools for Java (J2ME)
+# ========================
+.mtj.tmp/
+
+# ========================
+# Package Files
+# ========================
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# ========================
+# Virtual machine crash logs
+# ========================
+hs_err_pid*
+replay_pid*
+
+# ========================
+# Documentation / Targets
+# ========================
+HELP.md
+target/
+**/target/
+
+# Maven wrapper
+.mvn/wrapper/maven-wrapper.jar
+
+# Environment and configuration
+**/.env
+**/application.properties
+
+# ========================
+# Spring Tool Suite (STS)
+# ========================
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+# ========================
+# IntelliJ IDEA
+# ========================
+.idea
+*.iws
+*.iml
+*.ipr
+
+# ========================
+# NetBeans
+# ========================
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+
+# ========================
+# VS Code
+# ========================
+.vscode/
+
+# ========================
+# Ingress Secrets
+# ========================
+infrastructure/ingress/secrets/cert.pem
+infrastructure/ingress/secrets/key.pem
+
