@@ -1,0 +1,9 @@
+server:
+  shutdown: graceful
+  port: 8080
+
+spring:
+  application:
+    name: polygon
+  main:
+    banner-mode: off
