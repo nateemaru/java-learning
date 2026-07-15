@@ -1,0 +1,47 @@
+name: polygon
+services:
+  postgres:
+    image: postgres:18-trixie
+    container_name: polygon_db
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_SUPER_USERNAME} -p 5432" ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    environment:
+      POSTGRES_USER: ${DB_SUPER_USERNAME}
+      POSTGRES_PASSWORD: ${DB_SUPER_PASSWORD}
+      POSTGRES_DB: ${DB_APP_NAME}
+      DB_APP_USERNAME: ${DB_APP_USERNAME}
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD}
+    volumes:
+      - polygon_db_data:/var/lib/postgresql
+      - ./docker/postgres/init-app-user.sh:/docker-entrypoint-initdb.d/01-init-app-user.sh:ro
+    networks:
+      - polygon_net
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: app:latest
+    container_name: app
+    ports:
+      - "${APP_PORT}:8080"
+    environment:
+      DB_URL: ${DB_URL}
+      DB_APP_USERNAME: ${DB_APP_USERNAME}
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD}
+    networks:
+      - polygon_net
+    depends_on:
+      - postgres
+
+volumes:
+  polygon_db_data:
+    name: polygon_db_data
+
+networks:
+  polygon_net:
+    name: polygon_net
