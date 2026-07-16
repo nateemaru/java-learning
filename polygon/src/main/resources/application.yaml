@@ -9,8 +9,8 @@ spring:
     banner-mode: off
   datasource:
     url: jdbc:postgresql://${DB_HOST}?prepareThreshold=1&preparedStatementCacheSizeMiB=10&reWriteBatchedInserts=true&currentSchema=public
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    username: ${DB_APP_USERNAME}
+    password: ${DB_APP_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 20

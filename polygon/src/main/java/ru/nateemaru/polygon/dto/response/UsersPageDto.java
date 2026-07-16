@@ -1,22 +1,22 @@
 package ru.nateemaru.polygon.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonView;
-import ru.nateemaru.polygon.entity.Order;
 
-import java.time.Instant;
 import java.util.List;
 
-public record UserDto(
+public record UsersPageDto(
         @JsonView(UserViews.Summary.class)
-        Long id,
+        List<UserDto> users,
         @JsonView(UserViews.Summary.class)
-        String name,
+        int page,
         @JsonView(UserViews.Summary.class)
-        String email,
+        int size,
         @JsonView(UserViews.Summary.class)
-        Instant createdAt,
+        long totalElements,
         @JsonView(UserViews.Summary.class)
-        Instant updatedAt,
-        @JsonView(UserViews.Details.class)
-        List<Order> orders) {
+        int totalPages,
+        @JsonView(UserViews.Summary.class)
+        boolean first,
+        @JsonView(UserViews.Summary.class)
+        boolean last) {
 }

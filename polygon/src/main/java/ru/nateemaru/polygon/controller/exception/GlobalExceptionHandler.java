@@ -49,6 +49,7 @@ public class GlobalExceptionHandler {
         detail.setInstance(URI.create(request.getRequestURI()));
         detail.setTitle(exception.getClass().getName());
         detail.setProperty(TIMESTAMP, LocalDateTime.now());
+        detail.setDetail(exception.getMessage());
 
         return ResponseEntity
                 .status(status)
