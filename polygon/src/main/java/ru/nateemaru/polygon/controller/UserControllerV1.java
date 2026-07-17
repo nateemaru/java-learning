@@ -64,7 +64,7 @@ public class UserControllerV1 {
                                                @RequestParam(name = "direction", defaultValue = "ASC") Sort.Direction direction) {
         String property = switch (sortBy) {
             case ID -> "id";
-            case USERNAME -> "username";
+            case NAME -> "name";
             case EMAIL -> "email";
             case CREATED_AT -> "createdAt";
         };

@@ -4,10 +4,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -15,12 +19,14 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import ru.nateemaru.polygon.dto.request.CreateUserRequest;
 import ru.nateemaru.polygon.dto.request.UpdateUserSummaryRequest;
 import ru.nateemaru.polygon.dto.response.UserDto;
+import ru.nateemaru.polygon.dto.response.UsersPageDto;
 import ru.nateemaru.polygon.exception.UserNotFoundException;
 import ru.nateemaru.polygon.service.user.UserService;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
 import java.util.Collections;
+import java.util.List;
 import java.util.stream.Stream;
 
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -33,11 +39,12 @@ class UserControllerV1Test {
     UserService userService;
     @Autowired
     MockMvc mockMvc;
-    private static final ObjectMapper objectMapper = new ObjectMapper();
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Test
     @DisplayName("Create User - Success")
-    void create_Returns201() throws Exception {
+    void create_WithValidRequest_Returns201AndValidUserDto() throws Exception {
         Instant now = Instant.now();
         Long id = 1L;
         String name = "test";
@@ -57,7 +64,7 @@ class UserControllerV1Test {
                         jsonPath("$.id").value(id),
                         jsonPath("$.name").value(name),
                         jsonPath("$.email").value(email),
-                        jsonPath("$.orders").doesNotExist()
+                        jsonPath("$.orders").doesNotHaveJsonPath()
                 );
 
         Mockito.verify(userService).create(name, email);
@@ -66,7 +73,7 @@ class UserControllerV1Test {
     @ParameterizedTest
     @MethodSource("invalidCreateRequests")
     @DisplayName("Create User - Invalid Requests")
-    void create_withInvalidRequest_Returns400(CreateUserRequest request) throws Exception {
+    void create_WithInvalidRequest_Returns400(CreateUserRequest request) throws Exception {
         var requestBuilder = MockMvcRequestBuilders.post("/api/v1/user/create")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(asJsonString(request));
@@ -84,7 +91,7 @@ class UserControllerV1Test {
     void create_WithMissingFields_Returns400() throws Exception {
         var requestBuilder = MockMvcRequestBuilders.post("/api/v1/user/create")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"bad\": \"json\"}");
+                .content("{}");
 
         this.mockMvc.perform(requestBuilder)
                 .andExpectAll(
@@ -123,7 +130,7 @@ class UserControllerV1Test {
 
     @Test
     @DisplayName("Delete User - Success")
-    void delete_Returns204() throws Exception {
+    void delete_WithValidId_Returns204() throws Exception {
         Long id = 1L;
         mockMvc.perform(MockMvcRequestBuilders.delete("/api/v1/user/{id}", id))
                 .andExpectAll(
@@ -135,7 +142,7 @@ class UserControllerV1Test {
 
     @Test
     @DisplayName("Delete User - Not Found")
-    void delete_Returns404() throws Exception {
+    void delete_WithNotExistingId_Returns404() throws Exception {
         Long id = 1L;
 
         Mockito.doThrow(new UserNotFoundException(id))
@@ -153,7 +160,7 @@ class UserControllerV1Test {
 
     @Test
     @DisplayName("Delete User - Not Positive Id")
-    void delete_Returns400() throws Exception {
+    void delete_WithNegativeId_Returns400() throws Exception {
         Long id = -1L;
 
         var requestBuilder = MockMvcRequestBuilders.delete("/api/v1/user/{id}", id);
@@ -168,7 +175,7 @@ class UserControllerV1Test {
 
     @Test
     @DisplayName("Update User - Success")
-    void update_Returns200() throws Exception {
+    void update_WithValidIdAndRequest_Returns200AndUserDto() throws Exception {
         Instant now = Instant.now();
         Long id = 1L;
         String name = "updated_test";
@@ -189,7 +196,7 @@ class UserControllerV1Test {
                         jsonPath("$.id").value(id),
                         jsonPath("$.name").value(name),
                         jsonPath("$.email").value(email),
-                        jsonPath("$.orders").doesNotExist()
+                        jsonPath("$.orders").doesNotHaveJsonPath()
                 );
 
         Mockito.verify(userService).update(id, name, email);
@@ -198,7 +205,7 @@ class UserControllerV1Test {
     @ParameterizedTest
     @MethodSource("invalidUpdateRequests")
     @DisplayName("Update User - Invalid Requests")
-    void update_Returns400(UpdateUserSummaryRequest request) throws Exception {
+    void update_WithInvalidRequests_Returns400(UpdateUserSummaryRequest request) throws Exception {
         Long id = 1L;
         var requestBuilder = MockMvcRequestBuilders.put("/api/v1/user/{id}", id)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -229,7 +236,7 @@ class UserControllerV1Test {
         Long id = 1L;
         var requestBuilder = MockMvcRequestBuilders.put("/api/v1/user/{id}", id)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"bad\": \"json\"}");
+                .content("{}");
 
         this.mockMvc.perform(requestBuilder)
                 .andExpectAll(
@@ -258,7 +265,7 @@ class UserControllerV1Test {
 
     @Test
     @DisplayName("Update User - Not Found")
-    void update_Returns404() throws Exception {
+    void update_WithNotExistingId_Returns404() throws Exception {
         Long id = 1L;
         String name = "updated_test";
         String email = "updated_test@gmail.com";
@@ -281,8 +288,27 @@ class UserControllerV1Test {
     }
 
     @Test
-    @DisplayName("User With Details - Existing Id")
-    void userWithOrders_WithExistingId_Returns200() throws Exception {
+    @DisplayName("Update User - Negative Id")
+    void update_WhenIdIsNonPositive_Returns404() throws Exception {
+        Long id = -1L;
+
+        UpdateUserSummaryRequest request =
+                new UpdateUserSummaryRequest(
+                        "test",
+                        "test@gmail.com"
+                );
+
+        mockMvc.perform(MockMvcRequestBuilders.put("/api/v1/user/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(asJsonString(request)))
+                .andExpect(status().isBadRequest());
+
+        Mockito.verifyNoInteractions(userService);
+    }
+
+    @Test
+    @DisplayName("User With Details - User Dto With Orders")
+    void userWithOrders_WithExistingId_Returns200AndUserDtoWithOrders() throws Exception {
         Instant now = Instant.now();
         Long id = 1L;
         String name = "test";
@@ -301,7 +327,7 @@ class UserControllerV1Test {
                         jsonPath("$.id").value(id),
                         jsonPath("$.name").value(name),
                         jsonPath("$.email").value(email),
-                        jsonPath("$.orders").exists()
+                        jsonPath("$.orders").hasJsonPath()
                 );
         Mockito.verify(this.userService).getWithOrders(id);
     }
@@ -342,7 +368,227 @@ class UserControllerV1Test {
         Mockito.verifyNoInteractions(this.userService);
     }
 
-    private static String asJsonString(final Object obj) {
+    @Test
+    @DisplayName("Search Users - Custom Parameters")
+    void search_WithCustomParameters_Returns200AndPageDto() throws Exception {
+        UsersPageDto response = new UsersPageDto(
+                List.of(),
+                2,
+                10,
+                0,
+                0,
+                true,
+                true
+        );
+
+        Mockito.when(userService.getPage(Mockito.any(Pageable.class)))
+                .thenReturn(response);
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/user/search")
+                        .param("page", "2")
+                        .param("size", "10")
+                        .param("sortBy", "EMAIL")
+                        .param("direction", "DESC"))
+                .andExpectAll(
+                        status().isOk(),
+                        content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON),
+                        jsonPath("$.users").isArray(),
+                        jsonPath("$.page").value(2),
+                        jsonPath("$.size").value(10),
+                        jsonPath("$.totalElements").value(0),
+                        jsonPath("$.totalPages").value(0),
+                        jsonPath("$.first").value(true),
+                        jsonPath("$.last").value(true)
+                );
+
+        Pageable expected = PageRequest.of(
+                2,
+                10,
+                Sort.by(Sort.Direction.DESC, "email")
+        );
+
+        Mockito.verify(userService).getPage(expected);
+    }
+
+    @Test
+    @DisplayName("Search Users - Default Parameters")
+    void search_WithoutParameters_Returns200AndPageDto() throws Exception {
+        UsersPageDto response = new UsersPageDto(
+                List.of(),
+                0,
+                20,
+                0,
+                0,
+                true,
+                true
+        );
+
+        Mockito.when(userService.getPage(Mockito.any(Pageable.class)))
+                .thenReturn(response);
+
+        mockMvc.perform(
+                        MockMvcRequestBuilders.get("/api/v1/user/search")
+                )
+                .andExpectAll(
+                        status().isOk(),
+                        content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON),
+                        jsonPath("$.users").isArray(),
+                        jsonPath("$.page").value(0),
+                        jsonPath("$.size").value(20),
+                        jsonPath("$.totalElements").value(0),
+                        jsonPath("$.totalPages").value(0),
+                        jsonPath("$.first").value(true),
+                        jsonPath("$.last").value(true)
+                );
+
+        Pageable expected = PageRequest.of(
+                0,
+                20,
+                Sort.by(Sort.Direction.ASC, "id")
+        );
+
+        Mockito.verify(userService).getPage(expected);
+    }
+
+    @Test
+    @DisplayName("Search Users - Negative Page")
+    void search_WithNegativePage_Returns400() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/user/search")
+                        .param("page", "-1"))
+                .andExpect(status().isBadRequest());
+
+        Mockito.verifyNoInteractions(userService);
+    }
+
+    @Test
+    @DisplayName("Search Users - Zero Size")
+    void search_WithZeroSize_Returns400() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/user/search")
+                        .param("size", "0"))
+                .andExpect(status().isBadRequest());
+
+        Mockito.verifyNoInteractions(userService);
+    }
+
+    @Test
+    @DisplayName("Search Users - Invalid Sort Field")
+    void search_WithInvalidSortField_Returns400() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/user/search")
+                        .param("sortBy", "PASSWORD"))
+                .andExpect(status().isBadRequest());
+
+        Mockito.verifyNoInteractions(userService);
+    }
+
+    @Test
+    @DisplayName("Search Users - Invalid Direction")
+    void search_WithInvalidDirection_Returns400() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/user/search")
+                        .param("direction", "SIDEWAYS"))
+                .andExpect(status().isBadRequest());
+
+        Mockito.verifyNoInteractions(userService);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "ID, id",
+            "NAME, name",
+            "EMAIL, email",
+            "CREATED_AT, createdAt"
+    })
+    @DisplayName("Search Users - Valid Sort Type")
+    void search_WhenSortFieldValid_Returns200AndPageDto(String sortBy, String expectedProperty
+    ) throws Exception {
+        UsersPageDto response = new UsersPageDto(
+                List.of(),
+                0,
+                20,
+                0,
+                0,
+                true,
+                true
+        );
+
+        Mockito.when(userService.getPage(Mockito.any(Pageable.class)))
+                .thenReturn(response);
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/user/search")
+                        .param("sortBy", sortBy)
+                        .param("direction", "DESC"))
+                .andExpectAll(
+                        status().isOk(),
+                        content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON),
+                        jsonPath("$.users").isArray(),
+                        jsonPath("$.page").value(0),
+                        jsonPath("$.size").value(20),
+                        jsonPath("$.totalElements").value(0),
+                        jsonPath("$.totalPages").value(0),
+                        jsonPath("$.first").value(true),
+                        jsonPath("$.last").value(true)
+                );
+
+        Pageable expected = PageRequest.of(
+                0,
+                20,
+                Sort.by(Sort.Direction.DESC, expectedProperty)
+        );
+
+        Mockito.verify(userService).getPage(expected);
+    }
+
+    @Test
+    @DisplayName("Search Users - Orders Are Hidden")
+    void search_WhenUsersReturned_DoesNotIncludeOrders() throws Exception {
+        Instant now = Instant.now();
+
+        UserDto user = new UserDto(
+                1L,
+                "test",
+                "test@gmail.com",
+                now,
+                now,
+                List.of()
+        );
+
+        UsersPageDto response = new UsersPageDto(
+                List.of(user),
+                0,
+                20,
+                1,
+                1,
+                true,
+                true
+        );
+
+        Pageable expected = PageRequest.of(
+                0,
+                20,
+                Sort.by(Sort.Direction.ASC, "id")
+        );
+
+        Mockito.when(userService.getPage(expected))
+                .thenReturn(response);
+
+        mockMvc.perform(
+                        MockMvcRequestBuilders.get("/api/v1/user/search")
+                                .accept(MediaType.APPLICATION_JSON)
+                )
+                .andExpectAll(
+                        status().isOk(),
+                        content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON),
+                        jsonPath("$.users").isArray(),
+                        jsonPath("$.users.length()").value(1),
+                        jsonPath("$.users[0].id").value(1L),
+                        jsonPath("$.users[0].name").value("test"),
+                        jsonPath("$.users[0].email").value("test@gmail.com"),
+                        jsonPath("$.users[0].orders").doesNotHaveJsonPath()
+                );
+
+        Mockito.verify(userService).getPage(expected);
+    }
+
+    private String asJsonString(final Object obj) {
         try {
             return objectMapper.writeValueAsString(obj);
         } catch (Exception e) {
